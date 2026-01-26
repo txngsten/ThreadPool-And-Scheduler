@@ -1,4 +1,10 @@
 #include "ThreadPool.h"
+#include <mutex>
+#include <vector>
+#include <thread>
+#include <queue>
+#include <functional>
+#include <condition_variable>
 
 ThreadPool::ThreadPool(size_t numThreads) {
     for (size_t i {}; i < numThreads; i++) {

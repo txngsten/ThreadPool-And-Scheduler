@@ -39,6 +39,7 @@ private:
      */
     void workerLoop();
 
+    // Member variables.
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;
 
