@@ -9,9 +9,12 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <unordered_map>
+#include <atomic>
 
 using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 using Clock = std::chrono::steady_clock;
+using TaskID = std::uint64_t;
 
 class TaskScheduler {
 public:
@@ -29,24 +32,27 @@ public:
     ~TaskScheduler();
 
     /**
-     * @brief Pushes a task to the priority queue with a given start time and priority value.
      *
-     * @param task A callable.
-     * @param when A timestamp for when the task is to be executed at earliest
-     * @param priority An integer value that indicates a tasks priority, second to the time.
      */
-    void schedule(std::function<void()> task, TimePoint when, int priority = 0);
+    TaskID submit(std::function<void()> task, TimePoint when, int priority = 0,
+            const std::vector<TaskID>& dependencies = {});
 
     /**
-     * @brief Calls the schedule() function and sets when parameter to the current time and delay.
      *
-     * @param task A callable.
-     * @param delay A time duration to be added to the current time.
-     * @param priority n integer value that indicates a tasks priority, second to the time.
      */
-    void scheduleAfter(std::function<void()> task, Clock::duration delay, int priority = 0);
+    TaskID submitAfter(std::function<void()> task, Clock::duration delay, int priority = 0,
+         const std::vector<TaskID>& dependencies = {});
 
 private:
+    struct ScheduledTask {
+        TaskID id;
+        TimePoint startTime;
+        int priority;
+        std::function<void()> fn;
+        ScheduledTask(TaskID id, TimePoint startTime, int priority, std::function<void()> fn) :
+            id(id), startTime(startTime), priority(priority), fn(std::move(fn)) {}
+    };
+
     /**
      * @brief Scheduler thread will acquire a lock and check if the priority queue has tasks or if the
      * shutdown state is true. If a task is available, it will be parsed to the worker thread pool
@@ -54,27 +60,36 @@ private:
      */
     void schedulerLoop();
 
-    struct ScheduledTask {
-        TimePoint startTime;
-        int priority;
-        std::function<void()> fn;
-        ScheduledTask(TimePoint startTime, int priority, std::function<void()> fn) :
-            startTime(startTime), priority(priority), fn(std::move(fn)) {}
-    };
-
     // For priority queue comparison.
     struct TaskCompare {
-        bool operator()(const ScheduledTask &task1, const ScheduledTask &task2) const {
-            if (task1.startTime != task2.startTime) {
-                return task1.startTime > task2.startTime;
-            }
-            return task1.priority < task2.priority;
+        const std::unordered_map<TaskID, ScheduledTask>* tasks = nullptr;
+
+        bool operator()(TaskID a, TaskID b) const {
+            const auto& ta = tasks->at(a);
+            const auto& tb = tasks->at(b);
+
+            if (ta.startTime != tb.startTime)
+                return ta.startTime > tb.startTime;
+            return ta.priority < tb.priority;
         }
     };
 
-    // Member variables.
-    std::priority_queue<ScheduledTask, std::vector<ScheduledTask>, TaskCompare> taskQueue;
+    // Runnable tasks.
+    std::priority_queue<TaskID, std::vector<TaskID>, TaskCompare> taskQueue;
 
+    // Tasks waiting on dependencies to finish.
+    std::unordered_map<TaskID, ScheduledTask> tasks;
+
+    // Maps TaskID to the number of unfinished tasks each dependency has.
+    std::unordered_map<TaskID, int> remainingDeps;
+
+    // Adjacency list for DAG dependencies.
+    std::unordered_map<TaskID, std::vector<TaskID>> adjacency;
+
+    // Monotonic counter/incrementer for TaskID's.
+    std::atomic<TaskID> nextID {1};
+
+    // Member variables.
     std::mutex mutex;
     std::condition_variable cv;
     std::thread schedulerThread;

@@ -24,32 +24,43 @@ void TaskScheduler::schedulerLoop() {
             return;
         }
 
-        auto next = taskQueue.top();
-        auto now = Clock::now();
-
-        if (now < next.startTime) {
-            cv.wait_until(lock, next.startTime);
-            continue;
-        }
+        TaskID id = taskQueue.top();
+        auto& task = tasks.at(id);
 
         taskQueue.pop();
 
+        auto fn = std::move(task.fn);
+
         lock.unlock();
-        pool.submit(std::move(next.fn));
+        pool.submit(std::move(fn));
         lock.lock();
     }
 }
 
-void TaskScheduler::schedule(std::function<void()> task, TimePoint when, int priority) {
+TaskID TaskScheduler::submit(std::function<void()> task, TimePoint when, int priority,
+        const std::vector<TaskID>& dependencies) {
+    TaskID id = nextID.fetch_add(1, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> lock(mutex);
-        taskQueue.emplace(when, priority, std::move(task));
+        tasks.emplace(id, ScheduledTask {id, when, priority, std::move(task)});
+
+        remainingDeps[id] = static_cast<int>(dependencies.size());
+        for (TaskID dep : dependencies) {
+            adjacency[dep].push_back(id);
+        }
+
+        if (remainingDeps[id] == 0) {
+            taskQueue.push(id);
+            cv.notify_one();
+        }
     }
-    cv.notify_one();
+
+    return id;
 }
 
-void TaskScheduler::scheduleAfter(std::function<void()> task, Clock::duration delay, int priority) {
-    schedule(std::move(task), Clock::now() + delay, priority);
+TaskID TaskScheduler::submitAfter(std::function<void()> task, Clock::duration delay, int priority,
+        const std::vector<TaskID>& dependencies) {
+    return submit(std::move(task), Clock::now() + delay, priority, dependencies);
 }
 
 TaskScheduler::~TaskScheduler() {
