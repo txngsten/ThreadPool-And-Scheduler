@@ -32,3 +32,6 @@
 *.out
 *.app
 
+# Jetbrains IDE config
+*.idea
+
