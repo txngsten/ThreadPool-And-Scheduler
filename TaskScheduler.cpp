@@ -8,7 +8,7 @@
 #include <mutex>
 #include <condition_variable>
 
-TaskScheduler::TaskScheduler(ThreadPool &pool) : pool(pool) {
+TaskScheduler::TaskScheduler(ThreadPool &pool) : taskQueue(TaskCompare{&tasks}), pool(pool) {
     schedulerThread = std::thread(&TaskScheduler::schedulerLoop, this);
 }
 
@@ -30,9 +30,15 @@ void TaskScheduler::schedulerLoop() {
         taskQueue.pop();
 
         auto fn = std::move(task.fn);
+        TaskID finishedID = id;
+
+        auto wrapped = [this, finishedID, fn = std::move(fn)] () mutable {
+            fn();
+            onTaskFinish(finishedID);
+        };
 
         lock.unlock();
-        pool.submit(std::move(fn));
+        pool.submit(std::move(wrapped));
         lock.lock();
     }
 }
@@ -58,9 +64,21 @@ TaskID TaskScheduler::submit(std::function<void()> task, TimePoint when, int pri
     return id;
 }
 
-TaskID TaskScheduler::submitAfter(std::function<void()> task, Clock::duration delay, int priority,
-        const std::vector<TaskID>& dependencies) {
-    return submit(std::move(task), Clock::now() + delay, priority, dependencies);
+void TaskScheduler::onTaskFinish(TaskID id) {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    auto it = adjacency.find(id);
+    if (it == adjacency.end()) return;
+
+    for (TaskID dep : it->second) {
+        int& deps = remainingDeps[dep];
+        deps--;
+
+        if (deps == 0) {
+            taskQueue.push(dep);
+        }
+    }
+    cv.notify_one();
 }
 
 TaskScheduler::~TaskScheduler() {

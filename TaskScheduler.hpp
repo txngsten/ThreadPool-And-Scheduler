@@ -25,9 +25,6 @@ public:
     TaskID submit(std::function<void()> task, TimePoint when, int priority = 0,
             const std::vector<TaskID>& dependencies = {});
 
-    TaskID submitAfter(std::function<void()> task, Clock::duration delay, int priority = 0,
-         const std::vector<TaskID>& dependencies = {});
-
 private:
     struct ScheduledTask {
         TaskID id;
@@ -39,6 +36,8 @@ private:
     };
 
     void schedulerLoop();
+
+    void onTaskFinish(TaskID id);
 
     // For priority queue comparison.
     struct TaskCompare {
