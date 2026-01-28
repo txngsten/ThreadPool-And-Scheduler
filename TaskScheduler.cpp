@@ -1,5 +1,5 @@
-#include "TaskScheduler.h"
-#include "ThreadPool.h"
+#include "TaskScheduler.hpp"
+#include "ThreadPool.hpp"
 
 #include <chrono>
 #include <functional>

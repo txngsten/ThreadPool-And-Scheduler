@@ -1,7 +1,7 @@
 #ifndef THREADPOOL_TASKSCHEDULER_H
 #define THREADPOOL_TASKSCHEDULER_H
 
-#include "ThreadPool.h"
+#include "ThreadPool.hpp"
 #include <chrono>
 #include <functional>
 #include <queue>
