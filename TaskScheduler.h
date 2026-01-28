@@ -18,28 +18,13 @@ using TaskID = std::uint64_t;
 
 class TaskScheduler {
 public:
-    /**
-     * @brief Creates a task scheduler for a given thread pool.
-     * Initializes a 'Scheduler' thread which once spawned will call schedulerLoop().
-     *
-     * @param pool A thread pool object parsed by reference.
-     */
     explicit TaskScheduler(ThreadPool& pool);
 
-    /**
-     * @brief Safely and cleanly shuts down the task scheduler.
-     */
     ~TaskScheduler();
 
-    /**
-     *
-     */
     TaskID submit(std::function<void()> task, TimePoint when, int priority = 0,
             const std::vector<TaskID>& dependencies = {});
 
-    /**
-     *
-     */
     TaskID submitAfter(std::function<void()> task, Clock::duration delay, int priority = 0,
          const std::vector<TaskID>& dependencies = {});
 
@@ -53,11 +38,6 @@ private:
             id(id), startTime(startTime), priority(priority), fn(std::move(fn)) {}
     };
 
-    /**
-     * @brief Scheduler thread will acquire a lock and check if the priority queue has tasks or if the
-     * shutdown state is true. If a task is available, it will be parsed to the worker thread pool
-     * and popped off the priority queue.
-     */
     void schedulerLoop();
 
     // For priority queue comparison.
