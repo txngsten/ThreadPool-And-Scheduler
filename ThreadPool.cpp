@@ -7,9 +7,11 @@
 #include <functional>
 #include <condition_variable>
 
-ThreadPool::ThreadPool(size_t numThreads) {
+ThreadPool::ThreadPool(size_t numThreads) : stats(numThreads) {
     for (size_t i {}; i < numThreads; i++) {
-        workers.emplace_back(&ThreadPool::workerLoop, this);
+        workers.emplace_back([this, i] {
+            workerLoop(i);
+        });
     }
 }
 
@@ -21,7 +23,7 @@ void ThreadPool::submit(std::function<void()> task) {
     cv.notify_one();
 }
 
-void ThreadPool::workerLoop() {
+void ThreadPool::workerLoop(size_t workerId) {
     while (true) {
         std::function<void()> task;
 
@@ -40,6 +42,8 @@ void ThreadPool::workerLoop() {
         }
 
         task();
+
+        stats[workerId].tasksComplete++;
     }
 }
 

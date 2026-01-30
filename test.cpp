@@ -5,6 +5,7 @@
 #include <chrono>
 #include <thread>
 #include <vector>
+#include <mutex>
 
 void DAGtest() {
     using namespace std::chrono_literals;
@@ -61,6 +62,44 @@ void DAGtest() {
     std::cout << "Test finished\n";
 }
 
+void mixedDurationTest() {
+    using namespace std::chrono_literals;
+
+    constexpr int numThreads = 2;
+
+    ThreadPool pool(numThreads);
+    TaskScheduler scheduler(pool);
+
+    auto now = std::chrono::steady_clock::now();
+
+    // Imbalanced workload: 2 long, many short
+    scheduler.submit([] { std::this_thread::sleep_for(300ms); }, now);
+    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
+    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
+    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
+
+    scheduler.submit([] { std::this_thread::sleep_for(300ms); }, now);
+    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
+    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
+    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
+
+    // Let all tasks finish (temporary – until wait_all exists)
+    std::this_thread::sleep_for(1s);
+
+    // Print stats AFTER execution
+    const auto& stats = pool.getStats();
+    for (size_t i = 0; i < stats.size(); ++i) {
+        std::cout << "Worker " << i
+                  << " executed "
+                  << stats[i].tasksComplete
+                  << " tasks\n";
+    }
+
+    std::cout << "Mixed-duration test finished\n";
+}
+
+
 int main() {
-    DAGtest();
+    // DAGtest();
+    mixedDurationTest();
 }
