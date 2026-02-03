@@ -7,7 +7,13 @@
 #include <functional>
 #include <condition_variable>
 
-ThreadPool::ThreadPool(size_t numThreads) : stats(numThreads) {
+ThreadPool::ThreadPool(size_t numThreads) : deques(), stats(numThreads)  {
+    deques.reserve(numThreads);
+
+    for (size_t i {}; i < numThreads; i++) {
+        deques.emplace_back(64);
+    }
+
     for (size_t i {}; i < numThreads; i++) {
         workers.emplace_back([this, i] {
             workerLoop(i);
