@@ -32,6 +32,7 @@ void TaskScheduler::schedulerLoop() {
         auto fn = std::move(task.fn);
         TaskID finishedID = id;
 
+        // This ensures that only once a task is finished will its dependency count decrement.
         auto wrapped = [this, finishedID, fn = std::move(fn)] () mutable {
             fn();
             onTaskFinish(finishedID);
