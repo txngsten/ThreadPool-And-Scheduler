@@ -62,44 +62,81 @@ void DAGtest() {
     std::cout << "Test finished\n";
 }
 
-void mixedDurationTest() {
+void WorkStealingTest() {
     using namespace std::chrono_literals;
 
-    constexpr int numThreads = 2;
+    constexpr size_t NUM_THREADS = 4;
+    constexpr int LONG_TASKS = 24;
+    constexpr int SHORT_TASKS = 8;
 
-    ThreadPool pool(numThreads);
+    ThreadPool pool(NUM_THREADS);
     TaskScheduler scheduler(pool);
 
-    auto now = std::chrono::steady_clock::now();
+    std::mutex coutMutex;
 
-    // Imbalanced workload: 2 long, many short
-    scheduler.submit([] { std::this_thread::sleep_for(300ms); }, now);
-    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
-    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
-    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
+    auto longTask = [&](int id) {
+        return [&, id] {
+            {
+                std::lock_guard<std::mutex> lock(coutMutex);
+                std::cout << "[LONG  " << id << "] start on thread "
+                          << std::this_thread::get_id() << "\n";
+            }
 
-    scheduler.submit([] { std::this_thread::sleep_for(300ms); }, now);
-    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
-    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
-    scheduler.submit([] { std::this_thread::sleep_for(20ms);  }, now);
+            std::this_thread::sleep_for(300ms);
 
-    // Let all tasks finish (temporary – until wait_all exists)
-    std::this_thread::sleep_for(1s);
+            {
+                std::lock_guard<std::mutex> lock(coutMutex);
+                std::cout << "[LONG  " << id << "] end   on thread "
+                          << std::this_thread::get_id() << "\n";
+            }
+        };
+    };
 
-    // Print stats AFTER execution
-    const auto& stats = pool.getStats();
+    auto shortTask = [&](int id) {
+        return [&, id] {
+            {
+                std::lock_guard<std::mutex> lock(coutMutex);
+                std::cout << "[SHORT " << id << "] run   on thread "
+                          << std::this_thread::get_id() << "\n";
+            }
+
+            std::this_thread::sleep_for(30ms);
+        };
+    };
+
+    // Force skew — dump long tasks back-to-back
+    std::vector<TaskID> roots;
+    for (int i = 0; i < LONG_TASKS; ++i) {
+        roots.push_back(
+            scheduler.submit(longTask(i), Clock::now())
+        );
+    }
+
+    // Add a few short tasks dependent on nothing
+    for (int i = 0; i < SHORT_TASKS; ++i) {
+        scheduler.submit(shortTask(i), Clock::now());
+    }
+
+    // Give enough time for stealing to fully kick in
+    std::this_thread::sleep_for(6s);
+
+    auto stats = pool.getStats();
+
+    std::cout << "\n=== Thread execution stats ===\n";
     for (size_t i = 0; i < stats.size(); ++i) {
-        std::cout << "Worker " << i
-                  << " executed "
-                  << stats[i].tasksComplete
+        std::cout << "Thread " << i
+                  << " executed " << stats[i].tasksComplete
                   << " tasks\n";
     }
 
-    std::cout << "Mixed-duration test finished\n";
+    std::cout << "================================\n";
 }
+
+
 
 
 int main() {
     // DAGtest();
-    mixedDurationTest();
+    // WorkStealingTest();
+
 }

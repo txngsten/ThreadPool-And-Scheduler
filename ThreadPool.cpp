@@ -29,9 +29,11 @@ bool ThreadPool::trySteal(size_t thiefId, std::function<void()>& task) {
     const size_t n = deques.size();
     if (n <= 1) return false;
 
+    // Random generation of victim to ensure no bias.
     thread_local std::mt19937 rng{std::random_device{}()};
     std::uniform_int_distribution<size_t> dist(0, n - 1);
 
+    // Can be altered depending on performance needs.
     constexpr int ATTEMPTS = 4;
 
     for (int i {}; i < ATTEMPTS; i++) {
