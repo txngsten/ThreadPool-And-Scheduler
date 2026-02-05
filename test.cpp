@@ -136,7 +136,6 @@ void WorkStealingTest() {
 
 
 int main() {
-    // DAGtest();
+    DAGtest();
     // WorkStealingTest();
-
 }
