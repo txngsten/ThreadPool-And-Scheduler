@@ -57,6 +57,7 @@ Understanding this implementation will make the API and usage a lot more intuiti
 
 ### Usage
 Bellow is example usage found in [test.cpp](test.cpp) using the `DAGtest()` function, this test has task dependcies structured as:
+
 ![Task Dependency DAG](imgs/DAG%20Tasks.png)
 
 ```c++
